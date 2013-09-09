@@ -26,24 +26,29 @@ class Manager
 
     public static function initialize($url)
     {
-        $directory = parse_url($url, PHP_URL_PATH);
-        return Cache::instance()->fetch(__METHOD__)->then(null, function ($key) use ($directory) {
-            $configurations = array();
-            if (!is_dir($directory)) {
-                throw new Exception("Configuration directory $directory is not valid.");
-            }
-            foreach ((array) scandir($directory) as $path) {
-                $extension = pathinfo($path, PATHINFO_EXTENSION);
-                $path = $directory . DIRECTORY_SEPARATOR . $path;
-                if ($Parser = static::get(__CLASS__, "parsers.$extension")) {
-                    $configurations = array_replace_recursive($configurations, $Parser::parse($path));
-                }
-            }
-            Cache::instance()->store($key, $configurations);
-            return $configurations;
-        })->then(function ($configurations) {
-            static::$configurations = array_merge($configurations, static::$configurations);
-        });
+        switch (parse_url($url, PHP_URL_SCHEME)) {
+            case 'file':
+                $directory = parse_url($url, PHP_URL_PATH);
+                return Cache::instance()->fetch(__METHOD__)->then(null, function ($key) use ($directory) {
+                    $configurations = array();
+                    if (!is_dir($directory)) {
+                        throw new Exception("Configuration directory $directory is not valid.");
+                    }
+                    foreach ((array) scandir($directory) as $path) {
+                        $extension = pathinfo($path, PATHINFO_EXTENSION);
+                        $path = $directory . DIRECTORY_SEPARATOR . $path;
+                        if ($Parser = static::get(__CLASS__, "parsers.$extension")) {
+                            $configurations = array_replace_recursive($configurations, $Parser::parse($path));
+                        }
+                    }
+                    return Cache::instance()->store($key, $configurations);
+                })->then(function ($configurations) {
+                    return static::$configurations = array_merge($configurations, static::$configurations);
+                });
+            case 'mysql':
+            default:
+                throw new Exception('Configuration scheme currently not supported');
+        }
     }
 
     public static function defaults($class, $configuration = array())
