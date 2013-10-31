@@ -15,6 +15,7 @@
 namespace Bread\Configuration;
 
 use Bread\Caching\Cache;
+use Bread\Promises\When;
 use Exception;
 
 class Manager
@@ -24,30 +25,23 @@ class Manager
 
     private static $configurations = array();
 
-    public static function initialize($url)
+    public static function initialize($url, $cache = false)
     {
-        switch (parse_url($url, PHP_URL_SCHEME)) {
+        switch ($scheme = parse_url($url, PHP_URL_SCHEME)) {
             case 'file':
                 $directory = parse_url($url, PHP_URL_PATH);
-                return Cache::instance()->fetch(__METHOD__)->then(null, function ($key) use ($directory) {
-                    $configurations = array();
-                    if (!is_dir($directory)) {
-                        throw new Exception("Configuration directory $directory is not valid.");
-                    }
-                    foreach ((array) scandir($directory) as $path) {
-                        $extension = pathinfo($path, PATHINFO_EXTENSION);
-                        $path = $directory . DIRECTORY_SEPARATOR . $path;
-                        if ($Parser = static::get(__CLASS__, "parsers.$extension")) {
-                            $configurations = array_replace_recursive($configurations, $Parser::parse($path));
-                        }
-                    }
-                    return Cache::instance()->store($key, $configurations);
-                })->then(function ($configurations) {
-                    return static::$configurations = array_merge($configurations, static::$configurations);
-                });
+                if ($cache) {
+                    return Cache::instance()->fetch(__METHOD__)->then(null, function ($key) use ($directory) {
+                        return static::parse($directory);
+                    })->then(function ($configurations) {
+                        return Cache::instance()->store(__METHOD__, $configurations);
+                    });
+                } else {
+                    return When::resolve(static::parse($directory));
+                }
             case 'mysql':
             default:
-                throw new Exception('Configuration scheme currently not supported');
+                throw new Exception("Configuration scheme '$scheme' currently not supported");
         }
     }
 
@@ -92,15 +86,36 @@ class Manager
         return $configuration;
     }
 
-    public static function set($class, $key, $value)
+    public static function set($class, $key, $value = null)
     {
         if (!isset(static::$configurations[$class])) {
             static::$configurations[$class] = array();
         }
         $configuration = static::$configurations[$class];
-        static::$configurations[$class] = array_replace_recursive($configuration, Parsers\Initialization::parse(array(
-            $key => $value
-        ), false));
+        if (is_array($key)) {
+            $newConfiguration = $key;
+        } else {
+            $newConfiguration = Parsers\Initialization::parse(array(
+                $key => $value
+            ), false);
+        }
+        static::$configurations[$class] = array_replace_recursive($configuration, $newConfiguration);
+    }
+    
+    protected static function parse($directory)
+    {
+        $configurations = array();
+        if (!is_dir($directory)) {
+            throw new Exception("Configuration directory $directory is not valid.");
+        }
+        foreach ((array) scandir($directory) as $path) {
+            $extension = pathinfo($path, PATHINFO_EXTENSION);
+            $path = $directory . DIRECTORY_SEPARATOR . $path;
+            if ($Parser = static::get(__CLASS__, "parsers.$extension")) {
+                $configurations = array_replace_recursive($configurations, $Parser::parse($path));
+            }
+        }
+        return static::$configurations = array_merge($configurations, static::$configurations);
     }
 }
 
