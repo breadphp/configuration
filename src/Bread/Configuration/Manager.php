@@ -25,6 +25,8 @@ class Manager
 
     private static $configurations = array();
 
+    private static $configured = array();
+
     public static function initialize($url, $cache = false)
     {
         switch ($scheme = parse_url($url, PHP_URL_SCHEME)) {
@@ -47,6 +49,7 @@ class Manager
 
     public static function defaults($class, $configuration = array())
     {
+        static::$configured[$class] = true;
         if ($parent = get_parent_class($class)) {
             $configuration = array_replace_recursive(static::get($parent), $configuration);
         }
@@ -69,7 +72,9 @@ class Manager
 
     public static function get($class, $key = null)
     {
-        static::defaults($class);
+        if (!isset(static::$configured[$class])) {
+            static::defaults($class);
+        }
         if (!isset(static::$configurations[$class])) {
             return null;
         }
