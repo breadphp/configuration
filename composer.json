@@ -12,16 +12,14 @@
 		"configuration"
 	],
 	"homepage" : "https://github.com/breadphp/configuration",
-	"license" : [
-		"CC-BY-3.0"
-	],
+	"license" : "CC-BY-3.0",
 	"require" : {
 		"php" : ">=5.4",
 		"bread/caching" : "~1.0"
 	},
 	"autoload" : {
-		"psr-0" : {
-			"Bread\\Configuration" : "src"
+		"psr-4" : {
+			"Bread\\Configuration\\" : "src"
 		}
 	}
 }

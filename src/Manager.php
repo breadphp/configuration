@@ -47,56 +47,57 @@ class Manager
         }
     }
 
-    public static function defaults($class, $configuration = array())
+    public static function defaults($class, $configuration = array(), $domain = '__default__')
     {
         static::$configured[$class] = true;
         if ($parent = get_parent_class($class)) {
-            $configuration = array_replace_recursive(static::get($parent), $configuration);
+            $configuration = array_replace_recursive(static::get($parent, null, $domain), $configuration);
         }
         foreach (class_uses($class) as $trait) {
-            $configuration = array_replace_recursive(static::get($trait), $configuration);
+            $configuration = array_replace_recursive(static::get($trait, null, $domain), $configuration);
         }
-        if (isset(static::$configurations[$class])) {
-            $configuration = array_replace_recursive($configuration, static::$configurations[$class]);
+        if (isset(static::$configurations[$domain][$class])) {
+            $configuration = array_replace_recursive($configuration, static::$configurations[$domain][$class]);
+        } elseif($default = static::get($class)) {
+            $configuration = array_replace_recursive($configuration, $default);
         }
-        static::$configurations[$class] = $configuration;
+        static::$configurations[$domain][$class] = $configuration;
     }
 
-    public static function configure($class, $configuration = array())
+    public static function configure($class, $configuration = array(), $domain = '__default__')
     {
-        if (!isset(static::$configurations[$class])) {
-            static::$configurations[$class] = array();
+        if (!isset(static::$configurations[$domain][$class])) {
+            static::$configurations[$domain][$class] = array();
         }
-        static::$configurations[$class] = array_replace_recursive(static::$configurations[$class], $configuration);
+        static::$configurations[$domain][$class] = array_replace_recursive(static::$configurations[$class], $configuration);
     }
 
-    public static function get($class, $key = null)
+    public static function get($class, $key = null, $domain = '__default__')
     {
-        if (!isset(static::$configured[$class])) {
-            static::defaults($class);
+        if (! isset(static::$configured[$class])) {
+            static::defaults($class, array(), $domain);
         }
-        if (!isset(static::$configurations[$class])) {
-            return null;
+        if (! isset(static::$configurations[$domain][$class])) {
+            return $domain === '__default__' ? null : static::get($class, $key);
         }
-        $configuration = static::$configurations[$class];
-        if (null === $key) {
-            return $configuration;
-        }
-        foreach (explode('.', $key) as $key) {
-            if (!isset($configuration[$key])) {
-                return null;
+        $configuration = ($domain === '__default__') ? static::$configurations[$domain][$class] : array_replace_recursive(static::get($class), static::$configurations[$domain][$class]);
+        if (null !== $key) {
+            foreach (explode('.', $key) as $key) {
+                if (! isset($configuration[$key])) {
+                    return null;
+                }
+                $configuration = $configuration[$key];
             }
-            $configuration = $configuration[$key];
         }
         return $configuration;
     }
 
-    public static function set($class, $key, $value = null)
+    public static function set($class, $key, $value = null, $domain = '__default__')
     {
-        if (!isset(static::$configurations[$class])) {
-            static::$configurations[$class] = array();
+        if (!isset(static::$configurations[$domain][$class])) {
+            static::$configurations[$domain][$class] = array();
         }
-        $configuration = static::$configurations[$class];
+        $configuration = static::$configurations[$domain][$class];
         if (is_array($key)) {
             $newConfiguration = $key;
         } else {
@@ -104,9 +105,9 @@ class Manager
                 $key => $value
             ), false);
         }
-        static::$configurations[$class] = array_replace_recursive($configuration, $newConfiguration);
+        static::$configurations[$domain][$class] = array_replace_recursive($configuration, $newConfiguration);
     }
-    
+
     protected static function parse($directory)
     {
         $configurations = array();
@@ -120,7 +121,7 @@ class Manager
                 $configurations = array_replace_recursive($configurations, $Parser::parse($path));
             }
         }
-        return static::$configurations = array_merge($configurations, static::$configurations);
+        return static::$configurations = array_merge_recursive($configurations, static::$configurations);
     }
 }
 
