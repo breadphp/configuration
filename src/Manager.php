@@ -58,7 +58,7 @@ class Manager
         }
         if (isset(static::$configurations[$domain][$class])) {
             $configuration = array_replace_recursive($configuration, static::$configurations[$domain][$class]);
-        } elseif($default = static::get($class)) {
+        } elseif($default = static::get($class, null, $domain)) {
             $configuration = array_replace_recursive($configuration, $default);
         }
         static::$configurations[$domain][$class] = $configuration;
@@ -74,11 +74,11 @@ class Manager
 
     public static function get($class, $key = null, $domain = '__default__')
     {
+        if (! isset(static::$configurations[$domain][$class])) {
+            return $domain === '__default__' ? array() : static::get($class, $key);
+        }
         if (! isset(static::$configured[$class])) {
             static::defaults($class, array(), $domain);
-        }
-        if (! isset(static::$configurations[$domain][$class])) {
-            return $domain === '__default__' ? null : static::get($class, $key);
         }
         $configuration = ($domain === '__default__') ? static::$configurations[$domain][$class] : array_replace_recursive(static::get($class), static::$configurations[$domain][$class]);
         if (null !== $key) {
