@@ -25,8 +25,6 @@ class Manager
 
     private static $configurations = array();
 
-    private static $configured = array();
-
     public static function initialize($url, $cache = false)
     {
         switch ($scheme = parse_url($url, PHP_URL_SCHEME)) {
@@ -49,7 +47,6 @@ class Manager
 
     public static function defaults($class, $configuration = array(), $domain = '__default__')
     {
-        static::$configured[$class] = true;
         if ($parent = get_parent_class($class)) {
             $configuration = array_replace_recursive(static::get($parent, null, $domain), $configuration);
         }
@@ -58,8 +55,6 @@ class Manager
         }
         if (isset(static::$configurations[$domain][$class])) {
             $configuration = array_replace_recursive($configuration, static::$configurations[$domain][$class]);
-        } elseif($default = static::get($class, null, $domain)) {
-            $configuration = array_replace_recursive($configuration, $default);
         }
         static::$configurations[$domain][$class] = $configuration;
     }
@@ -69,24 +64,37 @@ class Manager
         if (!isset(static::$configurations[$domain][$class])) {
             static::$configurations[$domain][$class] = array();
         }
-        static::$configurations[$domain][$class] = array_replace_recursive(static::$configurations[$class], $configuration);
+        static::$configurations[$domain][$class] = array_replace_recursive(static::$configurations[$domain][$class], $configuration);
     }
 
-    public static function get($class, $key = null, $domain = '__default__')
+    public static function get($class, $keys = null, $domain = '__default__')
     {
-        if (! isset(static::$configurations[$domain][$class])) {
-            return $domain === '__default__' ? array() : static::get($class, $key);
+        if (!isset(static::$configurations[$domain])) {
+            static::$configurations[$domain] = array();
         }
-        if (! isset(static::$configured[$class])) {
+        if (!isset(static::$configurations[$domain][$class])) {
             static::defaults($class, array(), $domain);
         }
-        $configuration = ($domain === '__default__') ? static::$configurations[$domain][$class] : array_replace_recursive(static::get($class), static::$configurations[$domain][$class]);
-        if (null !== $key) {
-            foreach (explode('.', $key) as $key) {
-                if (! isset($configuration[$key])) {
-                    return null;
+        $configuration = static::$configurations[$domain][$class];
+        if (null !== $keys) {
+            foreach (explode('.', $keys) as $key) {
+                if (!isset($configuration[$key])) {
+                    if ($domain != '__default__') {
+                        if (get_parent_class($class)) {
+                            $configuration = static::get($class, $keys) ? : static::get(get_parent_class($class), $keys, $domain);
+                        } else {
+                            $configuration = static::get($class, $keys);
+                        }
+                    } else {
+                        if (get_parent_class($class)) {
+                            $configuration = static::get(get_parent_class($class), $keys, $domain);
+                        } else {
+                            return null;
+                        }
+                    }
+                } else {
+                    $configuration = $configuration[$key];
                 }
-                $configuration = $configuration[$key];
             }
         }
         return $configuration;
