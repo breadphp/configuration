@@ -72,25 +72,15 @@ class Manager
         if (!isset(static::$configurations[$domain])) {
             static::$configurations[$domain] = array();
         }
-        if (!isset(static::$configurations[$domain][$class])) {
-            static::defaults($class, array(), $domain);
-        }
+        static::defaults($class, array(), $domain);
         $configuration = static::$configurations[$domain][$class];
         if (null !== $keys) {
             foreach (explode('.', $keys) as $key) {
                 if (!isset($configuration[$key])) {
                     if ($domain != '__default__') {
-                        if (get_parent_class($class)) {
-                            $configuration = static::get($class, $keys) ? : static::get(get_parent_class($class), $keys, $domain);
-                        } else {
-                            $configuration = static::get($class, $keys);
-                        }
+                        $configuration = static::get($class, $keys);
                     } else {
-                        if (get_parent_class($class)) {
-                            $configuration = static::get(get_parent_class($class), $keys, $domain);
-                        } else {
-                            return null;
-                        }
+                        return null;
                     }
                 } else {
                     $configuration = $configuration[$key];
